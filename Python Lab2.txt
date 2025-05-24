@@ -3,6 +3,8 @@ import time
 import os
 from scipy.linalg import blas as scipy_blas
 
+print("Семенов Дмитрий Викторович - 020303-АИСа-о24")
+
 def generate_random_matrix(n):
     """Генерация случайной матрицы n x n"""
     return np.random.rand(n, n).astype(np.float64)
