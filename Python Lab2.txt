@@ -1,0 +1,106 @@
+import numpy as np
+import time
+import os
+from scipy.linalg import blas as scipy_blas
+
+def generate_random_matrix(n):
+    """Генерация случайной матрицы n x n"""
+    return np.random.rand(n, n).astype(np.float64)
+
+def save_matrix(matrix, filename):
+    """Сохранение матрицы в файл"""
+    np.save(filename, matrix)
+
+def load_matrix(filename, n, force_generate=False):
+    """Загрузка матрицы из файла или генерация новой"""
+    if not force_generate and os.path.exists(filename):
+        return np.load(filename)
+    matrix = generate_random_matrix(n)
+    save_matrix(matrix, filename)
+    return matrix
+
+def naive_matrix_multiply(A, B):
+    """Наивное умножение матриц по определению"""
+    n = A.shape[0]
+    C = np.zeros((n, n), dtype=np.float64)
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                C[i, j] += A[i, k] * B[k, j]
+    return C
+
+def blas_matrix_multiply(A, B):
+    """Умножение матриц с использованием BLAS через SciPy"""
+    return scipy_blas.dgemm(1.0, A, B)
+
+def optimized_matrix_multiply(A, B, block_size=32):
+    """Оптимизированное умножение матриц (блочный алгоритм)"""
+    n = A.shape[0]
+    C = np.zeros((n, n), dtype=np.float64)
+    
+    for ii in range(0, n, block_size):
+        for jj in range(0, n, block_size):
+            for kk in range(0, n, block_size):
+                # Определяем границы блоков
+                i_end = min(ii + block_size, n)
+                j_end = min(jj + block_size, n)
+                k_end = min(kk + block_size, n)
+                
+                # Умножаем блоки
+                C[ii:i_end, jj:j_end] += np.dot(
+                    A[ii:i_end, kk:k_end], 
+                    B[kk:k_end, jj:j_end]
+                )
+    return C
+
+def benchmark(matrix_size=1024):
+    """Тестирование производительности разных методов умножения"""
+    # Генерация или загрузка матриц
+    print("Подготовка матриц...")
+    A = load_matrix("matrix_a.npy", matrix_size)
+    B = load_matrix("matrix_b.npy", matrix_size)
+    
+    # Вычислительная сложность
+    complexity = 2 * matrix_size ** 3
+    
+    # 1. Тестирование наивного метода
+    print("Запуск наивного умножения...")
+    start = time.time()
+    C_naive = naive_matrix_multiply(A, B)
+    naive_time = time.time() - start
+    naive_mflops = complexity / naive_time * 1e-6
+    
+    # 2. Тестирование BLAS
+    print("Запуск BLAS умножения...")
+    start = time.time()
+    C_blas = blas_matrix_multiply(A, B)
+    blas_time = time.time() - start
+    blas_mflops = complexity / blas_time * 1e-6
+    
+    # Проверка корректности BLAS
+    if not np.allclose(C_naive, C_blas, atol=1e-6):
+        print("Предупреждение: Результаты BLAS и наивного метода различаются!")
+    
+    # 3. Тестирование оптимизированного метода
+    print("Запуск оптимизированного умножения...")
+    start = time.time()
+    C_optimized = optimized_matrix_multiply(A, B)
+    optimized_time = time.time() - start
+    optimized_mflops = complexity / optimized_time * 1e-6
+    
+    # Проверка корректности оптимизированного метода
+    if not np.allclose(C_naive, C_optimized, atol=1e-6):
+        print("Предупреждение: Результаты оптимизированного и наивного метода различаются!")
+    
+    # Вывод результатов
+    print("\nРезультаты производительности:")
+    print(f"1. Наивный метод:      {naive_time:.3f} сек, {naive_mflops:.2f} MFLOPS")
+    print(f"2. BLAS метод:         {blas_time:.3f} сек, {blas_mflops:.2f} MFLOPS")
+    print(f"3. Оптимизированный:   {optimized_time:.3f} сек, {optimized_mflops:.2f} MFLOPS")
+    
+    if blas_time > 0:
+        performance_ratio = optimized_mflops / blas_mflops * 100
+        print(f"\nОптимизированный метод достигает {performance_ratio:.1f}% производительности BLAS")
+
+if __name__ == "__main__":
+    benchmark(matrix_size=1024)
